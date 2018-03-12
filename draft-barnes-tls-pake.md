@@ -64,7 +64,7 @@ the client and server share only a low-entropy secret.
 Enabling TLS to address this use case effectively requires the TLS
 handshake to perform a password-authenticated key establishment
 (PAKE) protocol.  This document describes an embedding of the SPAKE2
-PAKE protocol in TLS 1.3 {{!I-D.ietf-cfrg-spake2}}
+PAKE protocol in TLS 1.3 {{!I-D.irtf-cfrg-spake2}}
 {{!I-D.ietf-tls-tls13}}.  This mechanism also applies to DTLS 1.3
 {{!I-D.ietf-tls-dtls13}}, but for brevity, we will refer only to TLS
 throughout. 
@@ -79,7 +79,7 @@ document are to be interpreted as described in {{!RFC2119}}.
 
 In order to use this protocol, a TLS client and server need to have
 pre-provisioned the values required to execute the SPAKE2 protocol
-(see Section 3.1 of {{!I-D.ietf-cfrg-spake2}}):
+(see Section 3.1 of {{!I-D.irtf-cfrg-spake2}}):
 
 * A DH group `G` of order `p*h`, with `p` a large prime
 * A hash function `H`
