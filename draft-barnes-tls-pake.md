@@ -1,7 +1,7 @@
 ---
 title: Usage of SPAKE with TLS 1.3
 abbrev: TLS 1.3 SPAKE
-docname: draft-barnes-tls-pake
+docname: draft-barnes-tls-pake-latest
 category: info
 
 ipr: trust200902
