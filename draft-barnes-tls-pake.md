@@ -82,6 +82,7 @@ pre-provisioned the values required to execute the SPAKE2 protocol
 (see Section 3.1 of {{!I-D.irtf-cfrg-spake2}}):
 
 * A DH group `G` of order `p*h`, with `p` a large prime
+* Fixed elements M and N for the group
 * A hash function `H`
 * A password `p`
 
@@ -130,7 +131,8 @@ appropriate salt value for use with a given server.
 
 A client offers to authenticate with SPAKE2 by including an `spake2`
 extension in its ClientHello.  The content of this exension is an
-`SPAKE2ClientHello` value, specifying the client's identity and a
+`SPAKE2ClientHello` value, specifying the client's identity, where
+the identity matches that used in 'IdentifierAndPassword', and a
 key share `T`.  The value `T` is computed as specified in
 {{!I-D.irtf-cfrg-spake2}}, as `T = w*M + X`, where `M` is a fixed
 value for the DH group and `X` is the public key of a fresh DH key
@@ -145,13 +147,13 @@ normal TLS ECDH mechanism.
 
 ```
 struct {
-  opaque id<0..2^16-1>;
+  opaque client_identity<0..2^16-1>;
   opaque T<0..2^16-1>;
 } SPAKE2ClientHello;
 ```
 
 A server that has received an `spake2` extension for an identity it
-recognizes can indicate its selection of SPAKE2 authentication by
+recognizes can indicate its enforcement of SPAKE2 authentication by
 including an `spake2` extension in its ServerHello.  The content of
 this exension is an `SPAKE2ServerHello` value, specifying the
 client's identity and a key share `S`.  The value `S` is computed as
@@ -160,7 +162,13 @@ is a fixed value for the DH group and `Y` is the public key of a fresh
 DH key pair.  The format of the key share `S` is the same as for a
 `KeyShareEntry` value from the same group.
 
-If a server selects SPAKE2 authentication, then it MUST NOT send an
+
+Use of SPAKE2 authenication and standard client certificate based
+authentication are not mutually exclusive. A server may include an
+`spake2` extension in its ServerHello, and also send a
+CertificateRequest message to the client.
+
+If a server encforces SPAKE2 authentication, then it MUST NOT send an
 extension of type `key_share`, `pre_shared_key`, or `early_data`.
 
 ```
