@@ -42,7 +42,7 @@ for building production systems.
 
 In some applications, it is desireable to enable a client and server
 to authenticate to one another using a low-entropy pre-shared value,
-such as a user-entered password.  
+such as a user-entered password.
 
 In prior versions of TLS, this functionality has been provided by
 the integration of the Secure Remote Password PAKE protocol (SRP)
@@ -67,7 +67,7 @@ handshake to perform a password-authenticated key establishment
 PAKE protocol in TLS 1.3 {{!I-D.irtf-cfrg-spake2}}
 {{!I-D.ietf-tls-tls13}}.  This mechanism also applies to DTLS 1.3
 {{!I-D.ietf-tls-dtls13}}, but for brevity, we will refer only to TLS
-throughout. 
+throughout.
 
 # Terminology
 
@@ -97,7 +97,7 @@ SPAKE specification, respectively.  The identity of the server is
 the domain name sent in the `server_name` extension of the
 ClientHello message.  The identity of the client is an opaque octet
 string, specified in the `spake2` ClientHello extension, defined
-below. 
+below.
 
 From the shared password, each party computes a shared integer `w`
 in the following way:
@@ -147,33 +147,40 @@ normal TLS ECDH mechanism.
 
 ```
 struct {
-  opaque client_identity<0..2^16-1>;
-  opaque T<0..2^16-1>;
+    opaque identity<0..2^16-1>;
+    opaque key_exchange<1..2^16-1>;
+} SPAKE2Share;
+
+struct {
+    SPAKE2Share client_shares<0..2^16-1>;
 } SPAKE2ClientHello;
 ```
 
-A server that has received an `spake2` extension for an identity it
-recognizes can indicate its enforcement of SPAKE2 authentication by
-including an `spake2` extension in its ServerHello.  The content of
-this exension is an `SPAKE2ServerHello` value, specifying the
-client's identity and a key share `S`.  The value `S` is computed as
-specified in {{!I-D.irtf-cfrg-spake2}}, as `S = w*N + Y`, where `N`
-is a fixed value for the DH group and `Y` is the public key of a fresh
-DH key pair.  The format of the key share `S` is the same as for a
-`KeyShareEntry` value from the same group.
+A server that receives an `spake2` extension examines the list of
+client shares to see if there is one with an identity the server
+recognizes.  If so, the server may indicate its use of SPAKE2
+authentication by including an `spake2` extension in its
+ServerHello.  The content of this exension is an `SPAKE2ServerHello`
+value, specifying the client's identity and a key share `S`.  The
+value `S` is computed as specified in {{!I-D.irtf-cfrg-spake2}}, as
+`S = w*N + Y`, where `N` is a fixed value for the DH group and `Y`
+is the public key of a fresh DH key pair.  The format of the key
+share `S` is the same as for a `KeyShareEntry` value from the same
+group.
 
-
-Use of SPAKE2 authenication and standard client certificate based
-authentication are not mutually exclusive. A server may include an
-`spake2` extension in its ServerHello, and also send a
+Use of SPAKE2 authenication is not inconsistent with standard
+certificate-based authentication of both clients and servers.
+authentication are not mutually exclusive. If a server includes an
+`spake2` extension in its ServerHello, it may still send the
+Certificate and CertificateVerify messages, and/or send a
 CertificateRequest message to the client.
 
-If a server encforces SPAKE2 authentication, then it MUST NOT send an
+If a server uses SPAKE2 authentication, then it MUST NOT send an
 extension of type `key_share`, `pre_shared_key`, or `early_data`.
 
 ```
 struct {
-  opaque S<0..2^16-1>;
+    SPAKE2Share server_share;
 } SPAKE2ServerHello;
 ```
 
@@ -188,7 +195,7 @@ As with client authentication via certificates, the server has not
 authenticated the client until after it has received the client's
 Finished message.  When a server negotiates the use of this
 mechanism for authentication, it MUST NOT send application data
-before it has received the client's Finished message. 
+before it has received the client's Finished message.
 
 # Security Considerations
 
@@ -218,7 +225,7 @@ on identity. ]]
 This document requests that IANA add a value to the TLS
 ExtensionType Registry with the following contents:
 
-| Value | Extension Name | TLS 1.3 | Reference | 
+| Value | Extension Name | TLS 1.3 | Reference |
 |:------|:---------------|:-------:|:---------:|
 | TBD   | spake2         | CH, SH  | RFC XXXX  |
 
