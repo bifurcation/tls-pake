@@ -108,11 +108,6 @@ struct {
   opaque server_name<0..255>;
   opaque password<0..255>;
 } PasswordInput;
-
-struct {
-  opaque salt<0..255>;
-  opaque idpass[H.length];
-} PasswordWithContext;
 ~~~~~
 
 * Encode the following values into a `PasswordInput` structure:
