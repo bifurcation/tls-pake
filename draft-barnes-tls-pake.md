@@ -82,15 +82,15 @@ pre-provisioned the values required to execute the SPAKE2 protocol
 (see Section 3.1 of {{!I-D.irtf-cfrg-spake2}}):
 
 * A DH group `G` of order `p*h`, with `p` a large prime
-* Fixed elements M and N for the group
+* Fixed elements `M` and `N` for the group
 * A hash function `H`
 * A password `p`
 
 Note that the hash function `H` might be different from the hash
 function associated with the ciphersuite negotiated by the two
-parties.  Clients offering SPAKE2 authentication SHOULD NOT offer
-ciphersuites with hashes that provide different security properties
-than the SPAKE hash.
+parties.  The hash function `H` MUST be a hash function suitable for
+hashing passwords, e.g., Argon2 or scrypt {{?I-D.irtf-cfrg-argon2}}
+{{?RFC7914}}.
 
 The TLS client and server roles map to the `A` and `B` roles in the
 SPAKE specification, respectively.  The identity of the server is
@@ -102,30 +102,37 @@ below.
 From the shared password, each party computes a shared integer `w`
 in the following way:
 
-```
+~~~~~
 struct {
   opaque client_identity<0..255>;
+  opaque server_name<0..255>;
   opaque password<0..255>;
-} IdentifierAndPassword;
+} PasswordInput;
 
 struct {
   opaque salt<0..255>;
   opaque idpass[H.length];
 } PasswordWithContext;
-```
+~~~~~
 
-* Encode the client's identity and the shared password into an
-  `IdentifierAndPassword` struct and compute its hash value `x` under
-  `H`.
-* Encode the salt and the value `x` into a PasswordWithContext
-  struct and compute its hash value `y` under `H`.
-* Set `w = y % p`, interpreting `y` as an integer in network byte
-  order.
+* Encode the following values into a `PasswordInput` structure:
+  * `client_identity`: The client's identity, in the same form that
+    is presented in the `identity` field of the `SPAKE2ClientHello`
+    structure.
+  * `server_name`: The server's identity, in the same form
+    presented in the `server_name` extension sent by the client.
+  * `password`: The password itself
 
-Note servers only need to store the integers `w`, which are
-effectively salted password hashes.  Clients that take passwords as
-input from users rather than storing them will need to know the
-appropriate salt value for use with a given server.
+* Use the hash function `H` with the encoded `PasswordInput`
+  structure as input to derive an `n`-byte string, where `n` is the
+  byte-length of `p`.
+
+* Interpret the `n`-bit string as an integer in network byte order
+  and let `w` be the result of reducing this integer mod `p`.
+
+Servers SHOULD store only the product `w*N` of `w` with the fixed element
+`N` of the group.  Clients MAY compute `w` dynamically, based on the
+password and client and server identities for a given session.
 
 # TLS Extensions
 
@@ -145,7 +152,7 @@ choose an authentication mode.  Unlike PSK-based authentication,
 however, authentication with SPAKE2 cannot be combined with the
 normal TLS ECDH mechanism.
 
-```
+~~~~~
 struct {
     opaque identity<0..2^16-1>;
     opaque key_exchange<1..2^16-1>;
@@ -154,19 +161,19 @@ struct {
 struct {
     SPAKE2Share client_shares<0..2^16-1>;
 } SPAKE2ClientHello;
-```
+~~~~~
 
 A server that receives an `spake2` extension examines the list of
 client shares to see if there is one with an identity the server
 recognizes.  If so, the server may indicate its use of SPAKE2
 authentication by including an `spake2` extension in its
 ServerHello.  The content of this exension is an `SPAKE2ServerHello`
-value, specifying the client's identity and a key share `S`.  The
-value `S` is computed as specified in {{!I-D.irtf-cfrg-spake2}}, as
-`S = w*N + Y`, where `N` is a fixed value for the DH group and `Y`
-is the public key of a fresh DH key pair.  The format of the key
-share `S` is the same as for a `KeyShareEntry` value from the same
-group.
+value, specifying the identity value for the password the server has
+selected, and the server's key share `S`.  The value `S` is computed
+as specified in {{!I-D.irtf-cfrg-spake2}}, as `S = w*N + Y`, where
+`N` is a fixed value for the DH group and `Y` is the public key of a
+fresh DH key pair.  The format of the key share `S` is the same as
+for a `KeyShareEntry` value from the same group.
 
 Use of SPAKE2 authenication is not inconsistent with standard
 certificate-based authentication of both clients and servers.
@@ -178,11 +185,11 @@ CertificateRequest message to the client.
 If a server uses SPAKE2 authentication, then it MUST NOT send an
 extension of type `key_share`, `pre_shared_key`, or `early_data`.
 
-```
+~~~~~
 struct {
     SPAKE2Share server_share;
 } SPAKE2ServerHello;
-```
+~~~~~
 
 Based on these messages, both the client and server can compute the
 shared key `K = x*(S-w*N) = y*(T-w*M)`, as specified in
@@ -211,9 +218,15 @@ in that document are also covered by the Finished MAC:
 * `S` via the ServerHello
 * `K`, and `w` via the TLS key schedule
 
+The `x` and `y` values used in the SPAKE2 protocol MUST have the
+same ephemerality properties as the key shares sent in the
+`key_shares` extension.  This ensures that TLS sessions using SPAKE2
+have the same forward secrecy properties as sessions using the
+normal TLS (EC)DH mechanism.
+
 The mechanism described above does not provide protection for the
 client's identity, in contrast to TLS client authentication with
-certificates.  If client identities are considered sensitive
+certificates.
 
 [[ XXX(rlb@ipv.sx): Or maybe there's some HRR dance we could do.
 For example: Server provides a key share in HRR, client does ECIES
