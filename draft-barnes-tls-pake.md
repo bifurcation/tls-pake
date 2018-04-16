@@ -27,7 +27,7 @@ author:
 
 The pre-shared key mechanism available in TLS 1.3 is not suitable
 for usage with low-entropy keys, such as passwords entered by users.
-This document describes how the SPAKE password-authenticated key
+This document describes how the SPAKE2+ password-authenticated key
 exchange can be used with TLS 1.3.
 
 
@@ -36,7 +36,7 @@ exchange can be used with TLS 1.3.
 
 # Introduction
 
-DISCLAIMER: This is a work-in-progress draft of MLS and has not yet
+DISCLAIMER: This is a work-in-progress draft and has not yet
 seen significant security analysis. It should not be used as a basis
 for building production systems.
 
@@ -78,13 +78,14 @@ document are to be interpreted as described in {{!RFC2119}}.
 # Setup
 
 In order to use this protocol, a TLS client and server need to have
-pre-provisioned the values required to execute the SPAKE2 protocol
+pre-provisioned the values required to execute the SPAKE2+ protocol
 (see Section 3.1 of {{!I-D.irtf-cfrg-spake2}}):
 
-* A DH group `G` of order `p*h`, with `p` a large prime
+* A DH group of order `p*h`, with `p` a large prime, and generator
+  `G`
 * Fixed elements `M` and `N` for the group
 * A hash function `H`
-* A password `p`
+* A password `pw`
 
 Note that the hash function `H` might be different from the hash
 function associated with the ciphersuite negotiated by the two
@@ -99,35 +100,39 @@ ClientHello message.  The identity of the client is an opaque octet
 string, specified in the `spake2` ClientHello extension, defined
 below.
 
-From the shared password, each party computes a shared integer `w`
-in the following way:
+From the shared password, each party computes two shared integers
+`w0` and `w1` by running the following algorithm twice (changing the
+`context` value each time):
 
 ~~~~~
 struct {
-  opaque client_identity<0..255>;
-  opaque server_name<0..255>;
+  uint16 context;
+  opaque client\_identity<0..255>;
+  opaque server\_name<0..255>;
   opaque password<0..255>;
 } PasswordInput;
 ~~~~~
 
 * Encode the following values into a `PasswordInput` structure:
-  * `client_identity`: The client's identity, in the same form that
-    is presented in the `identity` field of the `SPAKE2ClientHello`
-    structure.
-  * `server_name`: The server's identity, in the same form
-    presented in the `server_name` extension sent by the client.
-  * `password`: The password itself
+  * `client_identity`: The client's identity, as described above.
+  * `server_name`: The server's identity, as described above.
+  * `password`: The password `pw`
+  * `context`: One of the following values:
+    * 0x7730, when generating `w0`
+    * 0x7731, when generating `w1`
 
 * Use the hash function `H` with the encoded `PasswordInput`
   structure as input to derive an `n`-byte string, where `n` is the
   byte-length of `p`.
 
-* Interpret the `n`-bit string as an integer in network byte order
-  and let `w` be the result of reducing this integer mod `p`.
+* Interpret the `n`-bit string as an integer `w` in network byte
+  order.  Return the result `(w % p) * h` of reducing `w` mod p and
+  multiplying it by `h`.
 
-Servers SHOULD store only the product `w*N` of `w` with the fixed element
-`N` of the group.  Clients MAY compute `w` dynamically, based on the
-password and client and server identities for a given session.
+Servers MUST store only the value `w0` and the product `L = w1*G`,
+where `G` is the fixed generator of the group.  Clients will need to
+have access to the values `w0` and `w1` directly, but SHOULD
+generate these values dynamically, rather than caching them.
 
 # TLS Extensions
 
@@ -170,12 +175,11 @@ as specified in {{!I-D.irtf-cfrg-spake2}}, as `S = w*N + Y`, where
 fresh DH key pair.  The format of the key share `S` is the same as
 for a `KeyShareEntry` value from the same group.
 
-Use of SPAKE2 authenication is not inconsistent with standard
-certificate-based authentication of both clients and servers.
-authentication are not mutually exclusive. If a server includes an
-`spake2` extension in its ServerHello, it may still send the
-Certificate and CertificateVerify messages, and/or send a
-CertificateRequest message to the client.
+Use of SPAKE2+ authenication is compatible with standard
+certificate-based authentication of both clients and servers.  If a
+server includes an `spake2` extension in its ServerHello, it may
+still send the Certificate and CertificateVerify messages, and/or
+send a CertificateRequest message to the client.
 
 If a server uses SPAKE2 authentication, then it MUST NOT send an
 extension of type `key_share`, `pre_shared_key`, or `early_data`.
@@ -187,11 +191,16 @@ struct {
 ~~~~~
 
 Based on these messages, both the client and server can compute the
-shared key `K = x*(S-w*N) = y*(T-w*M)`, as specified in
-{{!I-D.irtf-cfrg-spake2}}.  The value `K` is then used as the
-`(EC)DHE` input to the TLS key schedule.  The integer `w` is used as
-the PSK input, encoded as an integer in network byte order, using
-the smallest number of octets possible.
+two shared values as specified in {{!I-D.irtf-cfrg-spake2}}.
+
+| Name | Value    | Client          | Server         |
+|:-----|:---------|:----------------|:---------------|
+| Z    | x\*y\*G  | x\*(S - w0\*N)  | x\*(T - w0\*M) |
+| V    | w1\*y\*G | w1\*(S - w0\*N) | y\*L           |
+
+
+The value `Z` is used as the "(EC)DHE" input to the TLS key
+schedule.  The value `V` is used as the "PSK" input.
 
 As with client authentication via certificates, the server has not
 authenticated the client until after it has received the client's
@@ -215,15 +224,16 @@ in that document are also covered by the Finished MAC:
 
 The `x` and `y` values used in the SPAKE2 protocol MUST have the
 same ephemerality properties as the key shares sent in the
-`key_shares` extension.  This ensures that TLS sessions using SPAKE2
-have the same forward secrecy properties as sessions using the
-normal TLS (EC)DH mechanism.
+`key_shares` extension.  In particular, `x` and `y` MUST NOT be
+equal to zero.   This ensures that TLS sessions using SPAKE2 have
+the same forward secrecy properties as sessions using the normal TLS
+(EC)DH mechanism.
 
 The mechanism described above does not provide protection for the
 client's identity, in contrast to TLS client authentication with
 certificates.
 
-[[ XXX(rlb@ipv.sx): Or maybe there's some HRR dance we could do.
+[[ XXX(rlb@ipv.sx): Maybe there's some HRR dance we could do.
 For example: Server provides a key share in HRR, client does ECIES
 on identity. ]]
 
