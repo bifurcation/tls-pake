@@ -229,14 +229,25 @@ equal to zero.   This ensures that TLS sessions using SPAKE2 have
 the same forward secrecy properties as sessions using the normal TLS
 (EC)DH mechanism.
 
-The mechanism described above does not provide protection for the
-client's identity, in contrast to TLS client authentication with
-certificates.
+The mechanism defined in this document does not provide protection
+for the client's identity, in contrast to TLS client authentication
+with certificates.
 
 [[ XXX(rlb@ipv.sx): Maybe there's some HRR dance we could do.
 For example: Server provides a key share in HRR, client does ECIES
 on identity. ]]
 
+TLS servers that offer this mechanism can be used by third party
+attackers as an oracle for two questions:
+
+1. Whether the server knows about a given identity
+2. Whether the server recognizes a given (identity, password) pair
+
+The former is signaled by whether the server returns an spake2
+extension.  The latter is signaled by whether the connection
+succeeds.  These oracles are all-or-nothing: If the attacker does
+not have the correct identity or password, he does not learn
+anything about the correct value.
 
 # IANA Considerations
 
