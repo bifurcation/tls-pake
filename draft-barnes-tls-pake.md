@@ -67,7 +67,7 @@ such as a user-entered password.
 In prior versions of TLS, this functionality has been provided by
 the integration of the Secure Remote Password PAKE protocol (SRP)
 {{?RFC5054}}.  The specific SRP integration described in RFC 5054
-does not immediately extend to TLS 1.3 becauseit relies on the
+does not immediately extend to TLS 1.3 because it relies on the
 Client Key Exchange and Server Key Exchange messages, which no
 longer exist in 1.3.  At a more fundamental level, the messaging
 patterns required by SRP do not map cleanly to the standard TLS 1.3
@@ -140,7 +140,7 @@ struct {
 } PAKEShare;
 
 struct {
-    SPAKE2Share client_shares<0..2^16-1>;
+    PAKEShare client_shares<0..2^16-1>;
 } PAKEClientHello;
 ~~~~~
 
@@ -154,7 +154,7 @@ selected, and the server's first message in the PAKE protocol.
 
 Use of PAKE authenication is compatible with standard
 certificate-based authentication of both clients and servers.  If a
-server includes n `pake` extension in its ServerHello, it may still
+server includes an `pake` extension in its ServerHello, it may still
 send the Certificate and CertificateVerify messages, and/or send a
 CertificateRequest message to the client.
 
@@ -278,7 +278,7 @@ have access to the values `w0` and `w1` directly, but SHOULD
 generate these values dynamically, rather than caching them.
 
 
-# Content of the TLS Extensionswhich pa
+# Content of the TLS Extensions
 
 The content of a `pake_message` in a ClientHello is the client's key
 share `T`.  The value `T` is computed as specified in
@@ -330,7 +330,10 @@ attackers as an oracle for two questions:
 2. Whether the server recognizes a given (identity, password) pair
 
 The former is signaled by whether the server returns a `pake`
-extension.  The latter is signaled by whether the connection
+extension.  
+[[TODO: Similar to https://tools.ietf.org/html/rfc5054#section-2.5.1.3, the server could run through a complete handshake calculation and fail at the end so that the attacker only knows that the identity/password pair is incorrect, but does not know if the identity is recognized or not. This requires that the server can interpret the pake_message and associated group parameters, etc., which requires a reworking of some text in this draft as the identity is currently defined as providing a map to said group parameters.]]
+
+The latter is signaled by whether the connection
 succeeds.  These oracles are all-or-nothing: If the attacker does
 not have the correct identity or password, he does not learn
 anything about the correct value.
@@ -357,6 +360,13 @@ equal to zero.   This ensures that TLS sessions using SPAKE2 have
 the same forward secrecy properties as sessions using the normal TLS
 (EC)DH mechanism.
 
+# Open Items
+
+## PAKE Algorithm Negotiation
+
+It is possible that a client may just know the password to use, but may not know in advance which PAKE protocols(s) a particular server supports. A potential solution to this is for the client to send supported PAKE protocols and its client_identity in the PAKEClientHello extension, but no pake_message. The server can then send an HelloRetryRequest indicating which PSKE protocol the client should use. The client then sends another ClientHello that includes a pake_message in the PAKEClientHello extension.
+
+As an optimaisation, similar to TLS1.3 key_share operation, the client could guess the PAKE protocol and include a pake_message derived from its guess in the initial ClientHello. If the server does not support the selected PAKE protcol (or protocol group parameter, etc.), the server can send an HelloRetryRequest indicating the supported PAKE protocol and group parameters. Note: it is TBD if sending two different pake_messages derived from two protocol and/or group parameters in two different ClientHello messages constitutes a significant attack vector. This needs cryptographic review.
 
 # IANA Considerations
 
