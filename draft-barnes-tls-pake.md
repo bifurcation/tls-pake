@@ -1,6 +1,6 @@
 ---
-title: Usage of SPAKE with TLS 1.3
-abbrev: TLS 1.3 SPAKE
+title: Usage of PAKE with TLS 1.3
+abbrev: TLS 1.3 PAKE
 docname: draft-barnes-tls-pake-latest
 category: info
 
@@ -120,7 +120,7 @@ required parameters.
 
 # TLS Extensions
 
-A client offers to authenticate with PAKE by including an `pake`
+A client offers to authenticate with PAKE by including a `pake`
 extension in its ClientHello.  The content of this exension is a
 `PAKEClientHello` value, providing a list of identities under which
 the client can authenticate, and for each identity, the client's
@@ -140,14 +140,14 @@ struct {
 } PAKEShare;
 
 struct {
-    SPAKE2Share client_shares<0..2^16-1>;
+    PAKEShare client_shares<0..2^16-1>;
 } PAKEClientHello;
 ~~~~~
 
-A server that receives an `pake` extension examines the list of
+A server that receives a `pake` extension examines the list of
 client shares to see if there is one with an identity the server
 recognizes.  If so, the server may indicate its choice of PAKE
-authentication by including an `pake` extension in its
+authentication by including a `pake` extension in its
 ServerHello.  The content of this exension is a `PAKEServerHello`
 value, specifying the identity value for the password the server has
 selected, and the server's first message in the PAKE protocol.
