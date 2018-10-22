@@ -85,11 +85,11 @@ handshake to execute a password-authenticated key establishment
 that can carry data necessary to execute a PAKE.
 
 This extension is generic, in that it can be used to carry key
-exchange information for multiple different PAKEs. We assume that
-the client and server have pre-negotiated a choice of PAKE (and any
-required parameters) in addition to the password itself.  As a first
-case, this document defines a concrete protocol for executing the
-SPAKE2+ PAKE protocol {{!I-D.irtf-cfrg-spake2}}.
+exchange information for multiple different PAKEs. The client and
+server may negotiated the PAKE algorithm, and any required
+parameters. As a first case, this document defines a concrete
+protocol for executing the SPAKE2+ PAKE protocol
+{{!I-D.irtf-cfrg-spake2}}.
 
 # Terminology
 
@@ -101,28 +101,18 @@ The mechanisms described in this document also apply to DTLS 1.3
 {{!I-D.ietf-tls-dtls13}}, but for brevity, we will refer only to TLS
 throughout.
 
-# Setup
-
-In order to use this protocol, a TLS client and server need to have
-pre-provisioned the values required to execute the protocol:
-
-* A choice of PAKE protocol
-* Any parameters required by the PAKE protocol
-* A password (or a derived value as described by the PAKE protocol)
-
-Servers will of course have multiple instances of this configuration
-information for different clients.  Clients may also have multiple
-identities, even within a given server.  We assume that in either
-case, a single opaque "identity" value is sufficient to identify the
-required parameters.
-
 # TLS Extensions
 
 A client offers to authenticate with PAKE by including a `pake`
 extension in its ClientHello.  The content of this exension is a
-`PAKEClientHello` value, providing a list of identities under which
-the client can authenticate, and for each identity, the client's
-first message from the underlying PAKE protocol.
+`PAKEClientHello` value, providing a list of `client_shares`.
+Each `client_share` contains PAKE algorithm type and associated
+paraemters, client identity and the client's first message from
+the underlying PAKE protocol.
+
+Clients MAY send an empty client_shares vector in order to request
+PAKE algorithm selection from the server, at the cost of an
+additional round trip.
 
 If a client sends the `pake` extension, then it MAY also send the
 `key_share` and `pre_shared_key` extensions, to allow the server to
@@ -133,6 +123,7 @@ itself.
 
 ~~~~~
 struct {
+    PAKEGroup group;
     opaque identity<0..2^16-1>;
     opaque pake_message<1..2^16-1>;
 } PAKEShare;
@@ -140,15 +131,26 @@ struct {
 struct {
     PAKEShare client_shares<0..2^16-1>;
 } PAKEClientHello;
+
+struct {
+    PAKEAlgorithm algorithm;
+} PAKEGroup;
+
+enum {
+   [[TO BE DEFINED]]
+PAKEAlgorithm;
+
 ~~~~~
 
 A server that receives a `pake` extension examines the list of
-client shares to see if there is one with an identity the server
-recognizes.  If so, the server may indicate its choice of PAKE
-authentication by including a `pake` extension in its
-ServerHello.  The content of this exension is a `PAKEServerHello`
-value, specifying the identity value for the password the server has
-selected, and the server's first message in the PAKE protocol.
+client shares to see if there is one with a PAKE algorithm that
+the server supports and an identity the server recognizes.  If
+so, the server may indicate its choice of PAKE authentication by
+including a `pake` extension in its ServerHello.  The content of
+this exension is a `PAKEServerHello` value including a `PAKEShare`.
+The `PAKEShare` specifyies the PAKE algorithm, the identity
+value for the password the server has selected, and the server's
+first message in the PAKE protocol.
 
 Use of PAKE authenication is compatible with standard
 certificate-based authentication of both clients and servers.  If a
@@ -365,7 +367,7 @@ the same forward secrecy properties as sessions using the normal TLS
 
 It is possible that a client may know the password to use, but may not know in advance which PAKE protocols(s) a particular server supports. A potential solution to this is similar to TLS1.3 ClientHello `key_share` operation: the client may send an empty `client_shares` vector in its PAKEClientHello extension. The server can then send an HelloRetryRequest indicating which PAKE protocol, and associated group parameters, the client should use. The client then sends another ClientHello that includes `pake_message` in the PAKEClientHello extension calculated using the correct algorithm. This requires definition of a suitable field for transporting PAKE algorithm and group parameters.
 
-As an optimaisation, similar to TLS1.3 key_share operation, the client could guess the PAKE protocol and include a `pake_message` derived from its guess in the initial ClientHello. If the server does not support the selected PAKE protcol (or protocol group parameter, etc.), the server can send an HelloRetryRequest indicating the supported PAKE protocol and group parameters. Note: it is TBD if sending two different `pake_messages` derived from two different protocol and/or group parameters in two different ClientHello messages constitutes a significant attack vector. This needs cryptographic review.
+As an optimisation, similar to TLS1.3 key_share operation, the client could guess the PAKE protocol and include a `pake_message` derived from its guess in the initial ClientHello. If the server does not support the selected PAKE protcol (or protocol group parameter, etc.), the server can send an HelloRetryRequest indicating the supported PAKE protocol and group parameters. Note: it is TBD if sending two different `pake_messages` derived from two different protocol and/or group parameters in two different ClientHello messages constitutes a significant attack vector. This needs cryptographic review.
 
 # IANA Considerations
 
